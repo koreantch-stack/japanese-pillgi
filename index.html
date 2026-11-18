@@ -379,7 +379,7 @@ function renderInfo() {
       c.classList.add('hl');
       const sp = inner.querySelector('.w[data-i="' + i + '"]'); if (sp) sp.classList.add('hl');
       setTimeout(() => { c.classList.remove('hl'); if (sp) sp.classList.remove('hl'); }, 1600);
-      if (S.speakTap) say(w.k || w.s);
+      if (S.speakTap) say(wordSpeech(w));
     });
     box.append(c);
   });
@@ -460,6 +460,9 @@ function openDrawer() { $('#drawer').classList.add('open'); $('#scrim').classLis
 function closeDrawer() { $('#drawer').classList.remove('open'); $('#scrim').classList.remove('show'); }
 
 /* ───────── 소리 ───────── */
+// 한자를 그대로 넘기면 음성 엔진이 엉뚱하게 읽으므로, 저장된 히라가나 읽기를 넘긴다.
+const wordSpeech = w => (w.r && w.r.trim()) || w.k || w.s;
+const sentenceSpeech = it => it.lines.map(l => l.map(wordSpeech).join('')).join('、');
 let warnedVoice = false;
 function say(text) {
   if (!('speechSynthesis' in window)) { toast('이 브라우저는 소리 재생을 지원하지 않아요'); return; }
@@ -672,7 +675,7 @@ $('#btnAdd').addEventListener('click', openAdd);
 $('#btnPrev').addEventListener('click', () => step(-1));
 $('#btnNext').addEventListener('click', () => step(1));
 $('#btnRand').addEventListener('click', () => guard(() => { if (view.length) loadItem(view[Math.floor(Math.random() * view.length)]); }));
-$('#btnSpeak').addEventListener('click', () => say(cur.text_orig || cur.text));
+$('#btnSpeak').addEventListener('click', () => say(sentenceSpeech(cur)));
 $('#btnPen').addEventListener('click', () => { tool = 'pen'; updateButtons(); });
 $('#btnEraser').addEventListener('click', () => { tool = 'eraser'; updateButtons(); });
 $('#btnUndo').addEventListener('click', () => { strokes.pop(); redraw(); });
