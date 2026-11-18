@@ -70,6 +70,9 @@ input[type=checkbox]{width:22px;height:22px;accent-color:var(--accent)}
 .chip.hl{border-color:var(--accent)}
 .chip .cr{font-size:11px;color:var(--sub);min-height:14px}
 .chip .cs{font-family:var(--jf);font-size:20px;line-height:1.25}
+.chip .rp{display:none;min-height:24px;padding:1px 7px;font-size:11px;margin-top:4px;background:#5a3b3b;border-radius:6px}
+.chip.pr .rp{display:inline-block}
+.chip{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 .chip .cm{font-size:12.5px;color:#f2c98c;max-width:150px;visibility:hidden}
 .chip.open .cm,#info[data-meaning=always] .chip .cm{visibility:visible}
 #ko{background:var(--panel);border-radius:10px;padding:10px 12px;font-size:15px;line-height:1.5}
@@ -131,6 +134,7 @@ input[type=checkbox]{width:22px;height:22px;accent-color:var(--accent)}
     <div id="titleBox"><div id="ttl">일본어 필기</div><div id="meta"></div></div>
     <div class="spacer"></div>
     <div id="stats"></div>
+    <button id="btnReports">신고함</button>
     <button id="btnGallery">내 필기</button>
     <button id="btnSettings">설정</button>
   </header>
@@ -155,6 +159,7 @@ input[type=checkbox]{width:22px;height:22px;accent-color:var(--accent)}
       <button id="btnNext">다음</button>
       <button id="btnRand">무작위</button>
       <button id="btnSpeak">듣기</button>
+      <button id="btnRpSent" class="sm">문장 소리 틀림</button>
     </div>
     <div class="grp">
       <button id="btnPen" class="on">펜</button>
@@ -372,7 +377,24 @@ function renderInfo() {
     if (!(w.r || w.m)) return;
     const c = el('div', 'chip'); c.dataset.i = i;
     c.append(el('div', 'cr', w.r && w.r !== surf(w) ? w.r : ''), el('div', 'cs', surf(w)), el('div', 'cm', w.m || ''));
+    const rp = el('button', 'rp', '소리 틀림'); rp.title = '이 단어 소리 신고';
+    rp.addEventListener('click', e => { e.stopPropagation(); addReport(w); c.classList.remove('pr'); });
+    c.append(rp);
+    let lpT = null, lpFired = false;
+    c.addEventListener('pointerdown', () => {
+      lpFired = false; clearTimeout(lpT);
+      lpT = setTimeout(() => {
+        lpFired = true;
+        document.querySelectorAll('.chip.pr').forEach(x => x !== c && x.classList.remove('pr'));
+        c.classList.add('pr');
+        if (navigator.vibrate) navigator.vibrate(30);
+      }, 500);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => c.addEventListener(ev, () => clearTimeout(lpT)));
+    c.addEventListener('contextmenu', e => e.preventDefault());
     c.addEventListener('click', () => {
+      if (lpFired) { lpFired = false; return; }
+      document.querySelectorAll('.chip.pr').forEach(x => x.classList.remove('pr'));
       c.classList.toggle('open');
       document.querySelectorAll('.chip.hl').forEach(x => x.classList.remove('hl'));
       document.querySelectorAll('#inner .w.hl').forEach(x => x.classList.remove('hl'));
@@ -638,6 +660,47 @@ function openAdd() {
     row.append(cancel, save); sh.append(row);
   });
 }
+
+
+/* ───────── 소리 틀림 신고 ───────── */
+let reports = LS.get('jp_reports', []);
+function updateReportBtn() { $('#btnReports').textContent = '신고함' + (reports.length ? ' ' + reports.length : ''); }
+function addReport(w) {
+  const rec = { id: cur.id, sent: cur.text_orig || cur.text, word: w ? (w.k || w.s) : '(문장 전체)', reading: w ? (w.r || '') : sentenceSpeech(cur), t: ymd() };
+  if (reports.some(r => r.id === rec.id && r.word === rec.word)) { toast('이미 신고함에 있어요'); return; }
+  reports.push(rec); LS.set('jp_reports', reports); updateReportBtn(); toast('신고함에 담았어요');
+}
+function reportText() {
+  return reports.map((r, i) => (i + 1) + '. ' + r.sent + ' / 단어: ' + r.word + ' / 저장된 읽기: ' + r.reading + ' / ' + r.id).join('\n');
+}
+function openReports() {
+  openModal(sh => {
+    sh.append(el('h2', '', '소리 틀림 신고함 (' + reports.length + ')'));
+    if (!reports.length) sh.append(el('div', 'empty', '단어 칩의 단어 풀이를 길게 누르면 나오는 「소리 틀림」 버튼으로 신고하세요'));
+    reports.forEach((r, i) => {
+      const row = el('div', 'row');
+      const m = el('div', 'rmain');
+      m.append(el('div', 'rt', r.word + '  →  ' + (r.reading || '')), el('div', 'rk', r.sent));
+      const del = el('button', '', '삭제'); del.style.fontSize = '13px';
+      del.addEventListener('click', () => { reports.splice(i, 1); LS.set('jp_reports', reports); updateReportBtn(); openReports(); });
+      row.append(m, del); sh.append(row);
+    });
+    const r = el('div', 'btnrow');
+    const clr = el('button', 'danger', '모두 비우기');
+    clr.addEventListener('click', () => { if (confirm('신고함을 비울까요?')) { reports = []; LS.set('jp_reports', reports); updateReportBtn(); openReports(); } });
+    const cp = el('button', 'primary', '전체 복사');
+    cp.addEventListener('click', async () => {
+      const t = reportText();
+      try { await navigator.clipboard.writeText(t); toast('복사했어요. 채팅에 붙여넣어 주세요'); }
+      catch { const ta = document.createElement('textarea'); ta.value = t; document.body.append(ta); ta.select(); document.execCommand('copy'); ta.remove(); toast('복사했어요'); }
+    });
+    const ok = el('button', '', '닫기'); ok.addEventListener('click', closeModal);
+    r.append(clr, cp, ok); sh.append(r);
+  });
+}
+$('#btnReports').addEventListener('click', openReports);
+$('#btnRpSent').addEventListener('click', () => addReport(null));
+updateReportBtn();
 
 /* ───────── 설정 적용·버튼 상태 ───────── */
 function applySettings() {
