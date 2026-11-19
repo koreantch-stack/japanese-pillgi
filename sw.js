@@ -1,5 +1,5 @@
 // 같은 출처 파일은 네트워크 우선(데이터 업데이트가 바로 반영됨), 오프라인이면 캐시를 쓴다.
-const V = 'jp-pillgi-v3';
+const V = 'jp-pillgi-v4';
 const ASSETS = ['./', 'index.html', 'poems.json', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
